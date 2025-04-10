@@ -25,6 +25,27 @@ class PkgInfo:
 
         self.sizes : Mapping[str, byte] = {}
 
+    @staticmethod
+    def make_blank(name : str):
+        toreturn = PkgInfo(**{ key:None for key in [
+                               'Repository', 'Name', 'Version', 'Description',
+                               'Architecture', 'URL', 'Licenses', 'Groups',
+                               'Provides', 'Depends On', 'Optional Deps',
+                               'Conflicts With', 'Replaces',
+                               'Download Size', 'Installed Size',
+                               'Packager', 'Build Date', 'Validated By',
+                               ]})
+        toreturn.name = name
+        toreturn.download_size = 0
+        toreturn.install_size = 0
+        toreturn.sizes['download (self)'] = 0
+        toreturn.sizes['install (self)'] = 0
+        toreturn.sizes['download (dep)'] = 0
+        toreturn.sizes['install (dep)'] = 0
+        toreturn.sizes['download (opt)'] = 0
+        toreturn.sizes['install (opt)'] = 0
+        return toreturn
+
     def update_sizes(self) -> None:
         dep_download_total : byte = 0.0
         dep_install_total : byte = 0.0

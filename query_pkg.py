@@ -9,6 +9,18 @@ import re
 import subprocess
 from PkgInfo import PkgInfo
 
+import logging
+from rich.logging import RichHandler
+
+logging.basicConfig(
+    level="NOTSET",
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[RichHandler(rich_tracebacks=True, markup=True)]
+)
+
+log = logging.getLogger("rich")
+
 def _process_val_raw_str(key : str, raw : str) -> Any:
     if raw == 'None':
         return None
@@ -34,7 +46,7 @@ def _process_val_raw_str(key : str, raw : str) -> Any:
             factor_exp = 10
         else:
             raise ValueError(f'Could not parse size for "{key}" package! Size value = "{raw}"')
-        # Remove the unit suffix and conver to bytes
+        # Remove the unit suffix and convert to bytes
         factor = 2**factor_exp
         return factor*float(re.search(r'^(.*?) *(?:KiB|MiB|GiB)', raw).group(1))
 
@@ -73,8 +85,19 @@ def query_pkg_info(package : str) -> PkgInfo | None:
     # When passing, ignore last line as it is blank.
     return _process_raw_query(process_result.stdout.splitlines()[:-1])
 
+def try_query_pkg_info(package : str, default : PkgInfo) -> PkgInfo:
+    try:
+        return query_pkg_info(package)
+    except subprocess.CalledProcessError:
+        log.warn(f'Failed to query info for [bold red blink]{package}[/]. Assuming package is provided by something else.')
+        return default
+
 def query_pkg_info_list(package : str, *package_list : List[str]) -> List[PkgInfo | None]:
-    process_result = subprocess.run(['pacman', '-Si', package, *package_list], text = True, check = True, capture_output = True)
+    try:
+        process_result = subprocess.run(['pacman', '-Si', package, *package_list], text = True, check = True, capture_output = True)
+    except subprocess.CalledProcessError as e:
+        log.info('Querying info. for list of packages failed. Trying one at a time.')
+        return [try_query_pkg_info(pkg, PkgInfo.make_blank(f'{pkg} ([#666666]no info[/])')) for pkg in [package, *package_list]]
 
     # Insert blank line at the end since pacman adds an extra line between
     # each result. This keeps the format consistent for later splitting.
@@ -89,3 +112,7 @@ def query_pkg_info_list(package : str, *package_list : List[str]) -> List[PkgInf
     ranges = [(idxs[i],idxs[i+1]) for i in range(len(idxs)-1)]
 
     return [_process_raw_query(raw_output[start:stop-1]) for start, stop in ranges]
+
+def query_installed_pkgs() -> List[str]:
+    process_result = subprocess.run(['pacman', '-Qq'], text = True, check = True, capture_output = True)
+    return [*process_result.stdout.splitlines()]
